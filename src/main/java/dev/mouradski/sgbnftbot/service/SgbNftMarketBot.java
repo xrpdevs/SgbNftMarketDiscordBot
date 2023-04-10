@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
+//import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Component
@@ -32,20 +32,20 @@ import java.util.stream.Stream;
 @Slf4j
 public class SgbNftMarketBot {
 
-    private SubscriptionService subscriptionService;
+    private final SubscriptionService subscriptionService;
 
-    private IpfsHelper ipfsHelper;
+    private final IpfsHelper ipfsHelper;
 
-    private EthHelper ethHelper;
+    private final EthHelper ethHelper;
 
-    private DiscordApi discordApi;
+    private final DiscordApi discordApi;
 
-    private List<TransactionPattern> transactionPatterns;
-    
+    private final List<TransactionPattern> transactionPatterns;
+
     private final NumberFormat NUMBER_FORMAT = NumberFormat.getNumberInstance(Locale.US);
 
-    private ExecutorService subscriptionsExecutor = Executors.newFixedThreadPool(3);
-    private ExecutorService processExecutor = Executors.newFixedThreadPool(3);
+    private final ExecutorService subscriptionsExecutor = Executors.newFixedThreadPool(3);
+    private final ExecutorService processExecutor = Executors.newFixedThreadPool(3);
 
     public SgbNftMarketBot(SubscriptionService subscriptionService, IpfsHelper ipfsHelper,
                            EthHelper ethHelper, List<TransactionPattern> transactionPatterns,
@@ -57,14 +57,14 @@ public class SgbNftMarketBot {
         this.discordApi = discordApi;
     }
 
+    @SuppressWarnings({"MismatchedQueryAndUpdateOfCollection", "FieldMayBeFinal"})
     private Set<String> contracts = new HashSet<>();
+    // this is never queried, according to the Intellij linter?
 
 
     @PostConstruct
     public void start() {
-        subscriptionService.getAll().forEach(subscription -> {
-            contracts.add(subscription.getContract());
-        });
+        subscriptionService.getAll().forEach(subscription -> contracts.add(subscription.getContract()));
 
         if (discordApi != null) {
             discordApi.addMessageCreateListener(event -> {
@@ -80,13 +80,13 @@ public class SgbNftMarketBot {
             });
 
 
-            Stream.of(Network.SONGBIRD, Network.FLARE).forEach(network -> {
-                this.ethHelper.getFlowable(network).subscribe(transaction -> {
-                    processExecutor.execute(() -> {
-                        process(transaction, network);
-                    });
-                });
-            });
+            // result of Flowable.subscribe() is ignored
+            //noinspection ResultOfMethodCallIgnored
+            Stream.of(Network.SONGBIRD, Network.FLARE).forEach(network ->
+                    this.ethHelper.getFlowable(network).subscribe(transaction ->
+                            processExecutor.execute(() -> process(transaction, network))
+                    )
+            );
         }
     }
 
@@ -97,7 +97,7 @@ public class SgbNftMarketBot {
 
             final String contract = params.length > 2 ? event.getMessageContent().split(" ")[2] : null;
 
-            if (contract != null && !contract.trim().isEmpty() && contract.trim().length() == 42) {
+            if (contract != null && contract.trim().length() == 42) {
                 subscriptionsExecutor.execute(() -> {
                     try {
                         subscribeContract(event.getChannel(), contract.toLowerCase(), event.getServer().orElse(null), Network.SONGBIRD);
@@ -140,7 +140,7 @@ public class SgbNftMarketBot {
                 contract = event.getMessageContent().split(" ")[2];
             }
 
-            if (contract != null && !contract.trim().isEmpty() && contract.trim().length() == 42) {
+            if (contract != null && contract.trim().length() == 42) {
                 try {
                     unsubscribe(event.getChannel(), contract.toLowerCase());
 
@@ -151,6 +151,7 @@ public class SgbNftMarketBot {
         }
     }
 
+    @SuppressWarnings("unused")
     public Optional<SaleNotification> process(String transactionHash, Network network) {
         try {
             return process(ethHelper.getTransaction(transactionHash, network), network);
@@ -159,6 +160,7 @@ public class SgbNftMarketBot {
             return Optional.empty();
         }
     }
+    // unused?
 
     public Optional<SaleNotification> process(Transaction transaction, Network network) {
         try {
@@ -169,7 +171,7 @@ public class SgbNftMarketBot {
             if (matchingTransactionPattern.isPresent()) {
                 SaleNotification saleNotification = matchingTransactionPattern.get().buildNotification(transaction);
 
-                Set<Subscription> subscriptions = subscriptionService.getByContract(saleNotification.getContract().toLowerCase()).stream().collect(Collectors.toSet());
+                Set<Subscription> subscriptions = new HashSet<>(subscriptionService.getByContract(saleNotification.getContract().toLowerCase()));
 
                 saleNotification.setSubscriptions(subscriptions);
 
@@ -184,9 +186,11 @@ public class SgbNftMarketBot {
         }
     }
 
+    @SuppressWarnings("unused")
     public void subscribeContract(String channel, String contract, Server server, Network network) throws IOException {
         subscribeContract(discordApi.getTextChannelById(channel).get(), contract, server, network);
     }
+    // unused?
 
     private void subscribeContract(TextChannel channel, String contract, Server server, Network network) throws IOException {
 
@@ -216,7 +220,7 @@ public class SgbNftMarketBot {
             return;
         }
 
-        String transactionTypeValue = null;
+        String transactionTypeValue;
 
         switch (saleNotification.getTransactionType()) {
             case OFFER_ACCEPTED:
@@ -231,7 +235,7 @@ public class SgbNftMarketBot {
         String tokenName = saleNotification.getSubscriptions().stream().findFirst().get().getTokenName();
 
         Optional<String> metaUri = ethHelper.getTokenUri(saleNotification.getContract(), saleNotification.getTokenId(), network);
-        String metaIpfsUri = null;
+        String metaIpfsUri;
 
         if (metaUri.isPresent()) {
             metaIpfsUri = metaUri.get().replace("https://ipfs.io/ipfs/", "ipfs://");
@@ -267,9 +271,7 @@ public class SgbNftMarketBot {
         saleNotification.getSubscriptions().forEach(subscription -> {
             Optional<TextChannel> channel = discordApi.getTextChannelById(subscription.getChannelId());
             try {
-                if (channel.isPresent()) {
-                    channel.get().sendMessage(embed).join();
-                }
+                channel.ifPresent(textChannel -> textChannel.sendMessage(embed).join());
             } catch (Exception e) {
                 log.error("Unable to send message triggered from transaction {} to channel {}", saleNotification.getTransactionHash(), channel.get().getIdAsString(), e);
             }
