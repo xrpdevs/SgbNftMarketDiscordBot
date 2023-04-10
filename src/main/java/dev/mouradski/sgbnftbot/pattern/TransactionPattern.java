@@ -7,7 +7,6 @@ import dev.mouradski.sgbnftbot.model.TransactionType;
 import dev.mouradski.sgbnftbot.service.EthHelper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.web3j.protocol.Web3j;
 import org.web3j.protocol.core.methods.response.Transaction;
 
 import java.io.IOException;
@@ -27,13 +26,13 @@ public abstract class TransactionPattern {
 
     protected abstract Marketplace getMarketplace();
 
-    protected abstract String extractNftContract(Transaction transaction) throws IOException;
+    protected abstract String extractNftContract(Transaction transaction) throws IOException, InvocationTargetException, NoSuchMethodException, IllegalAccessException;
 
     protected abstract String extractBuyer(Transaction transaction) throws IOException;
 
-    protected abstract Long extractTokenId(Transaction transaction) throws IOException;
+    protected abstract Long extractTokenId(Transaction transaction) throws IOException, InvocationTargetException, NoSuchMethodException, IllegalAccessException;
 
-    protected abstract String getMarketplaceListingUrl(Transaction transaction) throws IOException;
+    protected abstract String getMarketplaceListingUrl(Transaction transaction) throws IOException, InvocationTargetException, NoSuchMethodException, IllegalAccessException;
 
     protected abstract Double extracePrice(Transaction transaction) throws IOException, ClassNotFoundException,
             InvocationTargetException, NoSuchMethodException, InstantiationException, IllegalAccessException;
@@ -52,7 +51,8 @@ public abstract class TransactionPattern {
                 .buyer(buyer)
                 .transactionType(transactionType)
                 .marketplace(getMarketplace())
-                .price(price.doubleValue()).tokenId(tokenId)
+                .price(price)
+                .tokenId(tokenId)
                 .marketplaceListingUrl(marketplaceListingUrl)
                 .transactionHash(transaction.getHash())
                 .network(this.getNetwork())
