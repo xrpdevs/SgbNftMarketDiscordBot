@@ -23,16 +23,16 @@ import java.util.Optional;
 @Slf4j
 public class IpfsHelper {
 
-    private ObjectMapper objectMapper = new ObjectMapper()
+    private final ObjectMapper objectMapper = new ObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-    private RestTemplate restTemplate;
+    private final RestTemplate restTemplate;
 
-    private EthHelper ethHelper;
+    private final EthHelper ethHelper;
 
-    private List<IPFS> ipfsList = new ArrayList<>();
+    private final List<IPFS> ipfsList = new ArrayList<>();
 
-    private List<String> ipfsGateways = Arrays.asList("https://ipfs.io/ipfs/", "https://sparkles.mypinata.cloud/ipfs/", "https://ipfs.io/ipfs/");
+    private final List<String> ipfsGateways = Arrays.asList("https://ipfs.io/ipfs/", "https://sparkles.mypinata.cloud/ipfs/", "https://ipfs.io/ipfs/");
 
     public IpfsHelper(RestTemplate restTemplate, EthHelper ethHelper) {
         this.restTemplate = restTemplate;
@@ -50,7 +50,7 @@ public class IpfsHelper {
             try {
                 return get(uri, ipfs);
             } catch (Exception e) {
-                log.error("error retrieving IPFS resource", uri, e.getMessage());
+                log.error("error retrieving IPFS resource {} {}", uri, e.getMessage());
             }
         }
         return Optional.empty();
@@ -79,7 +79,7 @@ public class IpfsHelper {
                 restTemplate.exchange(url, HttpMethod.GET, buildEmptyEntity(), dev.mouradski.sgbnftbot.model.Meta.class);
 
         if (HttpStatus.OK == responseEntity.getStatusCode()) {
-            return Optional.of(responseEntity.getBody());
+            return Optional.ofNullable(responseEntity.getBody());
         } else {
             log.error("Error retrieving Metadata from {}, httpStatus : {}", url, responseEntity.getStatusCode());
             return Optional.empty();
@@ -87,7 +87,7 @@ public class IpfsHelper {
     }
 
     public Optional<Meta> getMetaFromGateway(String url, String httpGateway) {
-        String jsonUrl = null;
+        String jsonUrl;
 
         if (url.startsWith("http")) {
             jsonUrl = url;
@@ -95,10 +95,11 @@ public class IpfsHelper {
             jsonUrl = url.replace("ipfs://", httpGateway);
         }
 
-        ResponseEntity<dev.mouradski.sgbnftbot.model.Meta> responseEntity = restTemplate.exchange(jsonUrl, HttpMethod.GET, buildEmptyEntity(), dev.mouradski.sgbnftbot.model.Meta.class);
+        ResponseEntity<dev.mouradski.sgbnftbot.model.Meta> responseEntity =
+                restTemplate.exchange(jsonUrl, HttpMethod.GET, buildEmptyEntity(), dev.mouradski.sgbnftbot.model.Meta.class);
 
         if (HttpStatus.OK == responseEntity.getStatusCode()) {
-            return Optional.of(responseEntity.getBody());
+            return Optional.ofNullable(responseEntity.getBody());
         } else {
             log.error("Error retrieving Metadata from {}, httpStatus : {}", jsonUrl, responseEntity.getStatusCode());
             return Optional.empty();
@@ -118,11 +119,10 @@ public class IpfsHelper {
        return Optional.empty();
     }
 
-    private HttpEntity buildEmptyEntity() {
+    private HttpEntity<String> buildEmptyEntity() {
         HttpHeaders headers = new HttpHeaders();
         headers.add("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.115 Safari/537.36");
-        HttpEntity entity = new HttpEntity("", headers);
-        return entity;
+        return new HttpEntity<>("", headers);
     }
 
     public Optional<byte[]> get(String uri, IPFS ipfsProvider) throws IOException {
@@ -130,7 +130,7 @@ public class IpfsHelper {
                 uri.split("/ipfs/")[1].split("/") :
                 uri.replace("ipfs://", "").split("/");
 
-        byte[] content = null;
+        byte[] content;
 
         Multihash filePointer = Multihash.fromBase58(ipfsArgs[0]);
 
@@ -152,8 +152,11 @@ public class IpfsHelper {
 
         Optional<String> metaIpfsUri = Optional.empty();
 
-        while (i++ < 100 && !metaIpfsUri.isPresent()) {
-            metaIpfsUri = ethHelper.getTokenUri(contract, Long.valueOf(i), network);
+        if(ethHelper.addressIsContract(contract, network)) {
+
+            while (i++ < 100 && !metaIpfsUri.isPresent()) {
+                metaIpfsUri = ethHelper.getTokenUri(contract, (long) i, network);
+            }
         }
 
 
